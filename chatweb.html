@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mechasenger</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Prompt&display=swap');
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Prompt', sans-serif;
+      background: linear-gradient(135deg, #d0f0ff, #e6faff);
+      padding: 40px 20px;
+      color: #333;
+      max-width: 600px;
+      margin: auto;
+      border-radius: 20px;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    h2 {
+      text-align: center;
+      color: #007acc;
+      margin-bottom: 20px;
+      user-select: none;
+    }
+
+    #chat {
+      flex-grow: 1;
+      background: #f0faff;
+      border-radius: 15px;
+      padding: 15px;
+      overflow-y: auto;
+      box-shadow: inset 0 0 5px #a0d8f7;
+      margin-bottom: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .chat-left, .chat-right {
+      max-width: 80%;
+      padding: 10px 15px;
+      border-radius: 15px;
+      font-size: 15px;
+      line-height: 1.4;
+      white-space: pre-line;
+      word-wrap: break-word;
+      word-break: break-word;
+    }
+
+    .chat-left {
+      align-self: flex-start;
+      background-color: #00bcd4;
+      color: white;
+      border-bottom-left-radius: 3px;
+      border: 1px solid #0097a7;
+    }
+
+    .chat-right {
+      align-self: flex-end;
+      background-color: #e1f5fe;
+      border: 1px solid #81d4fa;
+      border-bottom-right-radius: 3px;
+      color: #333;
+    }
+
+    label {
+      font-weight: bold;
+      display: block;
+      margin: 10px 0 5px;
+      user-select: none;
+    }
+
+    textarea {
+      width: 100%;
+      padding: 10px;
+      border-radius: 10px;
+      border: 2px solid #b3e5fc;
+      font-size: 16px;
+      background-color: #f0faff;
+      height: 80px;
+      resize: none;
+    }
+
+    button {
+      background-color: #00bcd4;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-size: 16px;
+      border-radius: 10px;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: background 0.3s ease;
+      user-select: none;
+      width: 100%;
+    }
+
+    button:hover {
+      background-color: #0097a7;
+    }
+
+    .status {
+      margin-top: 10px;
+      font-weight: bold;
+      text-align: center;
+      min-height: 24px;
+      user-select: none;
+    }
+
+    img {
+      max-width: 100%;
+      height: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Mechasenger</h2>
+
+  <div id="chat"></div>
+
+  <label for="message">ข้อความถึงพี่รหัส</label>
+  <textarea id="message" placeholder="เขียนข้อความถึงพี่รหัสที่นี่..."></textarea>
+  <button onclick="sendToDiscord()">ส่งข้อความ</button>
+  <div class="status" id="status"></div>
+
+<script>
+  const webhookURL = 'https://discord.com/api/webhooks/1376950222206406729/fdiYm3hl7Mg0vv_HY4DyTa8ghq2l5vuCpFqVDEDrrojz1i6Mnhhqhc0G5Q3Ms8VkGM8x';
+  const chatDiv = document.getElementById('chat');
+  const statusDiv = document.getElementById('status');
+  const msgInput = document.getElementById('message');
+
+  // ดึงชื่อจาก localStorage หรือถามใหม่
+  let userName = localStorage.getItem('mechasenger_name');
+  if (!userName) {
+    userName = prompt('ชื่ออะไรอะเรา? 💁‍♀️');
+    if (!userName || !userName.trim()) {
+      userName = 'ผู้ใช้งาน';
+    }
+    localStorage.setItem('mechasenger_name', userName.trim());
+  }
+
+  // โหลดข้อความและรูปภาพเก่า (เป็น array ของ object {type:'text'|'image', content:'...'})
+  let storedRightMessages = JSON.parse(localStorage.getItem('mechasenger_messages_right')) || [];
+  let storedLeftMessages = JSON.parse(localStorage.getItem('mechasenger_messages_left')) || [];
+
+  // ฟังก์ชันแสดงข้อความในแชท และบันทึกถ้าฝั่งซ้าย/ขวา
+  function addChatMessage(content, side, save = true) {
+    let chatElement;
+    if (content.type === 'image') {
+      chatElement = document.createElement('img');
+      chatElement.src = content.content;
+      chatElement.style.maxWidth = '70%';
+      chatElement.style.borderRadius = '10px';
+      chatElement.style.alignSelf = side === 'left' ? 'flex-start' : 'flex-end';
+    } else {
+      chatElement = document.createElement('div');
+      chatElement.className = side === 'left' ? 'chat-left' : 'chat-right';
+      chatElement.textContent = content.content;
+    }
+
+    chatDiv.appendChild(chatElement);
+    chatDiv.scrollTop = chatDiv.scrollHeight;
+
+    if (save) {
+      if (side === 'right') {
+        storedRightMessages.push(content);
+        localStorage.setItem('mechasenger_messages_right', JSON.stringify(storedRightMessages));
+      } else {
+        storedLeftMessages.push(content);
+        localStorage.setItem('mechasenger_messages_left', JSON.stringify(storedLeftMessages));
+      }
+    }
+  }
+
+  // โหลดข้อความและรูปเก่าที่เก็บไว้ (ไม่บันทึกซ้ำ)
+  storedLeftMessages.forEach(msg => addChatMessage(msg, 'left', false));
+  storedRightMessages.forEach(msg => addChatMessage(msg, 'right', false));
+
+  // แสดงข้อความทักทายพี่รหัสก่อน (ฝั่งซ้าย) แค่ถ้าไม่มีข้อความทักทายเก่า
+  if (storedLeftMessages.length === 0) {
+    addChatMessage({ type: 'text', content: 'สวัสดีครับน้อง' }, 'left');
+  }
+
+  // ฟังก์ชันส่งข้อความ
+  function sendToDiscord() {
+    const msg = msgInput.value.trim();
+
+    if (!msg) {
+      statusDiv.textContent = '⚠️ ยังไม่ได้พิมพ์ก็อย่าพึ่งส่ง';
+      statusDiv.style.color = 'crimson';
+      return;
+    }
+
+    statusDiv.textContent = '';
+    const fullMessage = `💬 ข้อความจาก **${userName}**:\n\n${msg}`;
+
+    // แสดงข้อความฝั่งขวา (น้องรหัส) แบบข้อความ
+    addChatMessage({ type: 'text', content: msg }, 'right');
+
+    msgInput.value = '';
+
+    fetch(webhookURL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: fullMessage })
+    })
+    .then(res => {
+      if (res.ok) {
+        statusDiv.textContent = '✅ ส่งข้อความเรียบร้อยแล้ว!';
+        statusDiv.style.color = 'green';
+
+        // ถ้าเป็นข้อความแรก ให้พี่รหัสตอบกลับอัตโนมัติ
+        if (storedRightMessages.length === 1) {
+          setTimeout(() => {
+            const replyText = '📌 นี้คำใบ้พี่นะ';
+          
+
+            addChatMessage({ type: 'text', content: replyText }, 'left');
+            addChatMessage({ type: 'text', content: '11010000000111010001000010101110' }, 'left');
+            addChatMessage({ type: 'text', content: 'Binary to Octal' }, 'left');
+            addChatMessage({ type: 'text', content: 'พิมพ์คำตอบส่งมาในแชทได้เลย' }, 'left');
+            
+            
+          }, 1500);
+        }
+
+        if (msg === '32007210256') {
+          setTimeout(() => {
+            const specialReplyText = 'อะคำใบ้ หาให้เจอละ555';
+            const specialReplyText2 = 'อยากได้คำใบ้เพิ่มก็แก้โจทย์ละเดี่ยวพี่ส่งให้อีกคำใบ้นึง';
+            const specialImageUrl1 = 'https://media.discordapp.net/attachments/1212707347898695712/1376948208478982195/1748360393324.jpg?ex=68372e73&is=6835dcf3&hm=966d666645aa847e9068d2d6991b16384c31a3ee9f242be7a4b093cb5327be7c&=&format=webp&width=1056&height=756';
+            const specialImageUrl2 = 'https://cdn.discordapp.com/attachments/999658091274571868/1376980881251635320/Screenshot_20250528-005013.jpg?ex=68374ce1&is=6835fb61&hm=8422e37dcc75c81a4289865d721090dff6a8a6d88315643b3df3dba26f9c3b0d&';
+
+            addChatMessage({ type: 'text', content: specialReplyText }, 'left');
+            addChatMessage({ type: 'image', content: specialImageUrl1 }, 'left');
+            addChatMessage({ type: 'text', content: specialReplyText2 }, 'left');
+            addChatMessage({ type: 'image', content: specialImageUrl2 }, 'left');
+          }, 3000);
+        }
+        if (msg === '0') {
+          setTimeout(() => {
+            const specialReplyText = 'คำใบ้อีกอันคือ\n\n\n\n\n\n\n\n\n\n\n\n\n พี่ อยู่ ปวส.1(ทวิ)';
+            addChatMessage({ type: 'text', content: specialReplyText }, 'left');
+          }, 3000);
+        }
+        if (msg === '2') {
+          setTimeout(() => {
+            const specialReplyText = 'ยังไม่ถูกนะ';
+            addChatMessage({ type: 'text', content: specialReplyText }, 'left');
+          }, 3000);
+        }
+        if (msg === '1') {
+          setTimeout(() => {
+            const specialReplyText = 'ยังไม่ถูกนะ';
+            addChatMessage({ type: 'text', content: specialReplyText }, 'left');
+          }, 3000);
+        }
+
+      } else {
+        statusDiv.textContent = '❌ ส่งข้อความไม่สำเร็จ ลองใหม่อีกครั้ง';
+        statusDiv.style.color = 'crimson';
+      }
+    })
+    .catch(() => {
+      statusDiv.textContent = '❌ เกิดข้อผิดพลาด ไม่สามารถส่งข้อความได้';
+      statusDiv.style.color = 'crimson';
+    });
+  }
+</script>
+
+</body>
+</html>
